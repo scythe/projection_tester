@@ -3,8 +3,9 @@
 
 local png = require "luapng/init"
 local obj = require "obj"
-local math = require "math"
-local pi = math.pi
+local proj_stereo = require "stereographic"
+local proj_mollweide = require "mollweide"
+local pi, sin, cos, atan, sqrt, floor = math.pi, math.sin, math.cos, math.atan, math.sqrt, math.floor
 
 local data = io.open("dataset/ne_110m_coastline.geojson", "r")
 
@@ -40,14 +41,13 @@ function get_hemisphere(lat, lon, clon)
       end
 end
 
-
 local line_arr = obj(table)
 
 function line_arr:add_row(row, clon, project)
       local line = {}
       for _, point in ipairs(row) do
             local lat, lon, asia = point[2] * pi / 180, point[1] * pi / 180
-            lat, lon, asia = get_hemisphere(lat, lon)
+            lat, lon, asia = get_hemisphere(lat, lon, clon)
             local r, phi = project(lat, lon)
             if line.asia == nil then
                   line.asia = asia
@@ -68,64 +68,47 @@ function draw(line, img, scale, color)
             if i == #line then break end
             local point2 = line[i+1]
             local r1, phi1, r2, phi2 = point1[1], point1[2], point2[1], point2[2]
-            img.drawLine(x + r1 * cos(phi1), y + r1 * sin(phi1),
-                         x + r2 * cos(phi2), y + r2 * sin(phi2),
+            local x1, y1, x2, y2 = x - r1 * sin(phi1) * scale, y - r1 * cos(phi1) * scale,
+                                   x - r2 * sin(phi2) * scale, y - r2 * cos(phi2) * scale
+            img:drawLine(floor(x1 + 0.5), floor(y1 + 0.5),
+                         floor(x2 + 0.5), floor(y2 + 0.5),
                          color[1], color[2], color[3], color[4])
       end
 end
 
 function line_arr:plot(name, scale, color)
-      img = png.new(4 * scale, 2 * scale, "rgba")
+      local img = png.new(4 * scale, 2 * scale, "rgba")
       for k, line in ipairs(self) do
             draw(line, img, scale, color)
       end
+      local outline = {asia = true}
+      for i = 0, 720 do
+            outline[#outline + 1] = {1, pi * i / 360}
+      end
+      draw(outline, img, scale, color)
+      outline.asia = false
+      draw(outline, img, scale, color)
       img:save(name)
 end
 
-function get_quadrant(lat, lon)
-      local south, east = false, false
-      if lat < 0 then
-            lat = lat + pi/2
-            south = true
-      else
-            lat = pi/2 - lat
+-- average of Mollweide and stereographic projections along Archimedean spirals
+function proj_mollstereo(lat, lon)
+      local r1, phi1 = proj_stereo(lat, lon)
+      local r2, phi2 = proj_mollweide(lat, lon)
+      if phi2 < 0 then phi2 = phi2 + 2 * pi end
+      print("stereo: " .. r1 .. ", " .. phi1, "moll: " .. r2 .. ", " .. phi2)
+      return (r1 + r2)/2, (phi1 + phi2)/2
+end
+
+local clon, scale = ...
+clon = clon or -pi/8
+scale = scale or 1024
+
+for name, proj in pairs{ster = proj_stereo, moll = proj_mollweide, ms = proj_mollstereo} do
+      for _, curve in ipairs(coord_t) do
+            line_arr:add_row(curve, clon, proj)
       end
-      if lon <= pi/2 then
-            lon = pi/2 - lon
-      else
-            lon = lon - pi/2
-            east = true
-      end
-      return lat, lon, south, east
+      line_arr:plot(name .. ".png", scale, {60, 140, 220, 255})
+      line_arr = line_arr()
 end
 
-function decode_quadrant(lat, lon, south, east)
-      if south and east then
-            lon = pi + lon
-      elseif south and not east then
-            lon = pi - lon
-      elseif not south and east then
-            lon = 2 * pi - lon
-      end
-      return lat, lon, oct.asia
-end
-
--- rotates lat, lon measured from the north pole to measured from Null Island
--- new_lat = parallels around Null Island
--- new_lon = angle from the prime meridian
-function rotate_sphere(lat, lon)
-      local sin, cos, acos, asin = math.sin, math.cos, math.acos, math.asin
-      new_lat = acos(sin(lat) * cos(lon))
-      new_lon = asin(sin(lat) * sin(lon) / sin(new_lat))
-      return new_lat, new_lon
-end
-
-function proj_stereo(lat, lon)
-      local olat, olon, south, east = get_quadrant(lat, lon)
-      olat, olon = rotate_sphere(olat, olon)
-      olat, olon = decode_quadrant(olat, olon, south, east)
-      return tan(pi/4 - olat/2), olon
-end
-
-function proj_mollweide(lat, lon)
-      
