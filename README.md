@@ -23,8 +23,8 @@ Stereographic:
 ## Implementing your own projection
 
 As noted above, currently only "globular" projections, which map each hemisphere
-onto a circle, are supported. In order to add a projection, write a Lua function
-which computes the projection and add it to the loop at the end of 
+onto a circle, are supported. In order to add a projection, write a Luajit
+function which computes the projection and add it to the loop at the end of 
 `project.lua`:
 
 ```lua
