@@ -8,6 +8,12 @@ hemispheric stereographic projection, and mollweide.lua gives a Mollweide
 projection. To satisfy my own curiosity, I also included a projection which is
 the polar-coordinate average of stereographic and Mollweide. 
 
+![Mollweide projection](https://github.com/scythe/projection_tester/blob/main/moll.png)
+
+![(Mollweide + stereographic) / 2 projection](https://github.com/scythe/projection_tester/blob/main/ms.png)
+
+![Stereographic projection](https://github.com/scythe/projection_tester/blob/main/ster.png)
+
 ## Credits
 
 The map data used in this project is from Natural Earth:
